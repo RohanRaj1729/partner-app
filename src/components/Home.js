@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import SignInPage from './SignIn';
+import SignInPage from './SignIn1';
 import SignUpPage from './SignUp';
 
 const HomePage = () => {
