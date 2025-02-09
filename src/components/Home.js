@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import SignInPage from './SignIn';
 import SignUpPage from './SignUp';
+import FormPage from './FormPage';
 
 const HomePage = () => {
 	const [isSignIn, setIsSignIn] = useState(true);
@@ -14,7 +15,7 @@ const HomePage = () => {
 			{isSignIn ? (
 				<SignInPage switchToSignUp={switchPage} />
 			) : (
-				<SignUpPage switchToSignIn={switchPage} />
+				<FormPage switchToSignIn={switchPage} />
 			)}
 		</div>
 	);

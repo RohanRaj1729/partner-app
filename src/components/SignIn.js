@@ -101,7 +101,6 @@ const SignInPage = ({ switchToSignUp }) => {
         }
 
         setIsLoading(true);
-
         try {
             const response = await fetch(api_base_url + '/api/v1/otp/verify', {
                 method: 'POST',
