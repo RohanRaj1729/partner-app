@@ -3,24 +3,42 @@ import { ArrowRight, HelpCircle, Timer, Phone } from 'lucide-react';
 import BackgroundImage from './Home/BackgroundImage';
 import Navbar from './Home/Navbar';
 
+const api_base_url = process.env.REACT_APP_API_BASE_URL;
+
 const SignInPage = ({ switchToSignUp }) => {
-    const [mode, setMode] = useState('phone'); // 'phone' or 'otp'
-    const [phoneNumber, setPhoneNumber] = useState('');
+    const [mode, setMode] = useState(localStorage.getItem('mode') || 'phone'); // 'phone' or 'otp'
+    const [phoneNumber, setPhoneNumber] = useState(localStorage.getItem('phoneNumber') || '');
     const [otp, setOtp] = useState(['', '', '', '', '', '']);
     const [errors, setErrors] = useState({});
     const [isLoading, setIsLoading] = useState(false);
 
     const MAX_ATTEMPTS = 3;
     const [attempts, setAttempts] = useState(MAX_ATTEMPTS);
-    const [timeLeft, setTimeLeft] = useState(300);
+    const [timeLeft, setTimeLeft] = useState(localStorage.getItem('timeLeft') || 300);
     const inputRefs = useRef([...Array(6)].map(() => React.createRef()));
+    // Add this state
+    const [isValidPhone, setIsValidPhone] = useState(false);
+
+    // Update phone change handler
+    const handlePhoneChange = (e) => {
+        const value = e.target.value;
+        setPhoneNumber(value);
+        setIsValidPhone(/^[6-9]\d{9}$/.test(value)); // Indian mobile validation
+    };
 
     useEffect(() => {
+        localStorage.setItem('mode', mode);
+        localStorage.setItem('timeLeft', timeLeft);
         if (mode === 'otp' && timeLeft > 0) {
             const timer = setInterval(() => setTimeLeft(t => t - 1), 1000);
             return () => clearInterval(timer);
         }
-    }, [mode, timeLeft]);
+        if (phoneNumber) {
+            localStorage.setItem('phoneNumber', phoneNumber);
+            localStorage.setItem('timeLeft', 300);
+            setTimeLeft(300);
+        }
+    }, [mode, timeLeft, phoneNumber]);
 
     const validatePhoneNumber = () => {
         const newErrors = {};
@@ -39,17 +57,34 @@ const SignInPage = ({ switchToSignUp }) => {
 
     const handleSendOTP = async (e) => {
         e.preventDefault();
-
         if (!validatePhoneNumber()) return;
-
         setIsLoading(true);
 
         try {
-            // Simulate OTP sending
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            setMode('otp');
+            const response = await fetch(api_base_url + '/api/v1/otp/send', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    phone_number: "+91" + String(phoneNumber)
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.status === 200) {
+                setMode('otp');
+                setTimeLeft(300); // Reset timer
+            } else if (response.status === 429) {
+                setErrors({ submit: 'Too many attempts. Please try again later.' });
+            } else if (response.status === 400) {
+                setErrors({ submit: data.message || 'Invalid phone number format' });
+            } else {
+                setErrors({ submit: 'Failed to send OTP. Please try again.' });
+            }
         } catch (error) {
-            setErrors({ submit: 'Failed to send OTP. Please try again.' });
+            setErrors({ submit: 'Network error. Please check your connection.' });
         } finally {
             setIsLoading(false);
         }
@@ -68,11 +103,26 @@ const SignInPage = ({ switchToSignUp }) => {
         setIsLoading(true);
 
         try {
-            // Simulate OTP verification
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            console.log('Signed in successfully with OTP');
+            const response = await fetch(api_base_url + '/api/v1/otp/verify', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    phone_number: "+91" + String(phoneNumber),
+                    otp: otpValue
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.status === 200) {
+                switchToSignUp()
+            } else {
+                setErrors({ submit: data.message });
+            }
         } catch (error) {
-            setErrors({ submit: 'Invalid OTP. Please try again.' });
+            setErrors({ submit: 'Network error. Please check your connection.' });
         } finally {
             setIsLoading(false);
         }
@@ -102,7 +152,8 @@ const SignInPage = ({ switchToSignUp }) => {
         setIsLoading(true);
         try {
             await new Promise(resolve => setTimeout(resolve, 1500));
-            // Reset OTP fields
+            setTimeLeft(300);
+            localStorage.setItem('timeLeft', 300);
             setOtp(['', '', '', '', '', '']);
         } catch (error) {
             setErrors({ submit: 'Failed to resend OTP. Please try again.' });
@@ -114,9 +165,6 @@ const SignInPage = ({ switchToSignUp }) => {
     const renderPhoneNumberView = () => (
         <form onSubmit={handleSendOTP} className="space-y-4">
             <div>
-                {/* <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
-                    Phone Number
-                </label> */}
                 <div className="relative bg-white rounded-lg shadow-xl p-5 w-96">
                     <div className="flex justify-between items-start mb-6">
                         <h2 className="text-2xl font-bold">Get Started</h2>
@@ -132,30 +180,13 @@ const SignInPage = ({ switchToSignUp }) => {
                         id="phone"
                         name="phone"
                         value={phoneNumber}
-                        onChange={(e) => setPhoneNumber(e.target.value)}
+                        onChange={handlePhoneChange}
                         maxLength="10"
                     />
-                    {/* <button className="w-full bg-orange-500 text-white py-3 rounded-md flex items-center justify-center gap-2 hover:bg-orange-600 transition-colors">
-                        Continue
-                        <ArrowRight className="h-4 w-4" />
-                    </button> */}
                     <p className="text-sm text-gray-500 mt-1">
                         By logging in, I agree to the terms & conditions
                     </p>
                 </div>
-                {/* <div className="relative">
-                    <Phone className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                    <input
-                        id="phone"
-                        name="phone"
-                        type="tel"
-                        placeholder="+91 9876-765-567"
-                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        value={phoneNumber}
-                        onChange={(e) => setPhoneNumber(e.target.value)}
-                        maxLength="10"
-                    />
-                </div> */}
                 {errors.phone && (
                     <p className="text-sm text-red-500 mt-1">{errors.phone}</p>
                 )}
@@ -163,26 +194,16 @@ const SignInPage = ({ switchToSignUp }) => {
 
             <button
                 type="submit"
-                disabled={isLoading}
-                // className={`w-full py-2 px-4 rounded-md text-white font-medium ${isLoading
-                //     ? 'bg-blue-400 cursor-not-allowed'
-                //     : 'bg-blue-600 hover:bg-blue-700'
-                //     }`}
-                className='w-full bg-orange-500 text-white py-3 rounded-md flex items-center justify-center gap-2 hover:bg-orange-600 transition-colors'
+                disabled={isLoading || !isValidPhone}
+                className={`w-full py-3 rounded-md flex items-center justify-center gap-2 transition-colors ${isLoading || !isValidPhone
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-orange-500 hover:bg-orange-600'
+                    }`}
             >
                 {isLoading ? 'Sending OTP...' : 'Send OTP'}
                 <ArrowRight className="h-4 w-4" />
             </button>
 
-            {/* <div className="mt-4 text-center">
-                <button
-                    type="button"
-                    className="text-sm text-blue-600 hover:text-blue-500"
-                    onClick={switchToSignUp}
-                >
-                    Create an account
-                </button>
-            </div> */}
         </form>
     );
 
@@ -253,7 +274,6 @@ const SignInPage = ({ switchToSignUp }) => {
                 </button>
                 <button
                     type="button"
-                    // className="text-sm text-gray-500 hover:text-gray-700 block mx-auto"
                     className="text-sm text-orange hover:text-orange-900 block mx-auto transition-colors"
                     onClick={() => setMode('phone')}
                 >
@@ -270,17 +290,6 @@ const SignInPage = ({ switchToSignUp }) => {
             <div className="min-h-screen flex items-center justify-center p-4 relative z-10">
                 <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-xl w-full max-w-md p-8">
                     <div className="flex flex-col items-center mb-6">
-                        {/* <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center mb-4">
-                            <Phone className="w-6 h-6 text-white" />
-                        </div> */}
-                        {/* <h1 className="text-2xl font-bold text-center">
-                            {mode === 'phone' ? 'Sign In with Phone' : 'Verify OTP'}
-                        </h1>
-                        <p className="text-sm text-gray-500">
-                            {mode === 'phone'
-                                ? 'Enter your phone number'
-                                : `OTP sent to ${phoneNumber}`}
-                        </p> */}
                     </div>
 
                     {errors.submit && (
